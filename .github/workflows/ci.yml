@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+# se você der outro push no mesmo PR, cancela a execução anterior
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      # o prisma.config.ts lê essa variável; o generate não conecta no banco,
+      # mas o config precisa de um valor válido
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Gerar Prisma Client
+        run: npx prisma generate
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Formatação
+        run: npm run format:check
+
+      - name: Build
+        run: npm run build
+
+      - name: Testes
+        run: npm test
