@@ -11,3 +11,173 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum PapelUsuario {
+  cliente
+  barbeiro
+  dono
+
+  @@map("papel_usuario")
+}
+
+enum StatusAgendamento {
+  pendente
+  confirmado
+  concluido
+  cancelado
+  no_show
+
+  @@map("status_agendamento")
+}
+
+enum MotivoBloqueio {
+  almoco
+  folga
+  feriado
+  outro
+
+  @@map("motivo_bloqueio")
+}
+
+model Barbearia {
+  id       String  @id @default(uuid(7)) @db.Uuid
+  nome     String
+  slug     String  @unique
+  endereco String?
+  fuso     String  @default("America/Sao_Paulo")
+
+  passoGradeMin           Int @default(15) @map("passo_grade_min")
+  antecedenciaMinimaMin   Int @default(60) @map("antecedencia_minima_min")
+  prazoCancelamentoMin    Int @default(120) @map("prazo_cancelamento_min")
+  intervaloAtendimentoMin Int @default(0) @map("intervalo_atendimento_min")
+  toleranciaFaltaMin      Int @default(15) @map("tolerancia_falta_min")
+
+  criadoEm     DateTime @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz()
+
+  usuarios     Usuario[]
+  barbeiros    Barbeiro[]
+  servicos     Servico[]
+  expedientes  Expediente[]
+  bloqueios    Bloqueio[]
+  agendamentos Agendamento[]
+
+  @@map("barbearias")
+}
+
+model Usuario {
+  id          String       @id @default(uuid(7)) @db.Uuid
+  barbeariaId String       @map("barbearia_id") @db.Uuid
+  nome        String
+  email       String
+  telefone    String?
+  senhaHash   String       @map("senha_hash")
+  papel       PapelUsuario @default(cliente)
+
+  criadoEm     DateTime @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz()
+
+  barbearia    Barbearia     @relation(fields: [barbeariaId], references: [id])
+  barbeiro     Barbeiro?
+  agendamentos Agendamento[]
+
+  @@unique([barbeariaId, email])
+  @@map("usuarios")
+}
+
+model Barbeiro {
+  id                 String  @id @default(uuid(7)) @db.Uuid
+  barbeariaId        String  @map("barbearia_id") @db.Uuid
+  usuarioId          String? @unique @map("usuario_id") @db.Uuid
+  nomeExibicao       String  @map("nome_exibicao")
+  comissaoPercentual Int     @default(50) @map("comissao_percentual")
+  ativo              Boolean @default(true)
+
+  criadoEm     DateTime @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz()
+
+  barbearia    Barbearia     @relation(fields: [barbeariaId], references: [id])
+  usuario      Usuario?      @relation(fields: [usuarioId], references: [id])
+  expedientes  Expediente[]
+  bloqueios    Bloqueio[]
+  agendamentos Agendamento[]
+
+  @@map("barbeiros")
+}
+
+model Servico {
+  id            String  @id @default(uuid(7)) @db.Uuid
+  barbeariaId   String  @map("barbearia_id") @db.Uuid
+  nome          String
+  duracaoMin    Int  @map("duracao_min")
+  precoCentavos Int  @map("preco_centavos")
+  ativo         Boolean @default(true)
+
+  criadoEm     DateTime @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz()
+
+  barbearia    Barbearia     @relation(fields: [barbeariaId], references: [id])
+  agendamentos Agendamento[]
+
+  @@map("servicos")
+}
+
+model Expediente {
+  id          String @id @default(uuid(7)) @db.Uuid
+  barbeariaId String @map("barbearia_id") @db.Uuid
+  barbeiroId  String @map("barbeiro_id") @db.Uuid
+  diaSemana   Int    @map("dia_semana")
+  inicioMin   Int    @map("inicio_min")
+  fimMin      Int    @map("fim_min")
+
+  barbearia Barbearia @relation(fields: [barbeariaId], references: [id])
+  barbeiro  Barbeiro  @relation(fields: [barbeiroId], references: [id])
+
+  @@index([barbeiroId, diaSemana])
+  @@map("expediente")
+}
+
+model Bloqueio {
+  id          String         @id @default(uuid(7)) @db.Uuid
+  barbeariaId String         @map("barbearia_id") @db.Uuid
+  barbeiroId  String         @map("barbeiro_id") @db.Uuid
+  inicio      DateTime       @db.Timestamptz()
+  fim         DateTime       @db.Timestamptz()
+  motivo      MotivoBloqueio
+  observacao  String?
+
+  criadoEm DateTime @default(now()) @map("criado_em") @db.Timestamptz()
+
+  barbearia Barbearia @relation(fields: [barbeariaId], references: [id])
+  barbeiro  Barbeiro  @relation(fields: [barbeiroId], references: [id])
+
+  @@index([barbeiroId, inicio])
+  @@map("bloqueios")
+}
+
+model Agendamento {
+  id                   String            @id @default(uuid(7)) @db.Uuid
+  barbeariaId          String            @map("barbearia_id") @db.Uuid
+  barbeiroId           String            @map("barbeiro_id") @db.Uuid
+  clienteId            String?           @map("cliente_id") @db.Uuid
+  nomeCliente          String?           @map("nome_cliente")
+  servicoId            String            @map("servico_id") @db.Uuid
+  inicio               DateTime          @db.Timestamptz()
+  fim                  DateTime          @db.Timestamptz()
+  status               StatusAgendamento @default(confirmado)
+  expiraEm             DateTime?         @map("expira_em") @db.Timestamptz()
+  precoCobradoCentavos Int               @map("preco_cobrado_centavos")
+  observacao           String?
+
+  criadoEm     DateTime @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz()
+
+  barbearia Barbearia @relation(fields: [barbeariaId], references: [id])
+  barbeiro  Barbeiro  @relation(fields: [barbeiroId], references: [id])
+  cliente   Usuario?  @relation(fields: [clienteId], references: [id])
+  servico   Servico   @relation(fields: [servicoId], references: [id])
+
+  @@index([barbeiroId, inicio])
+  @@index([clienteId, inicio])
+  @@map("agendamentos")
+}
