@@ -12,10 +12,25 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       # o prisma.config.ts lê essa variável; o generate não conecta no banco,
       # mas o config precisa de um valor válido
       DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      DATABASE_URL_TEST: postgresql://ci:ci@localhost:5432/ci_test
 
     steps:
       - uses: actions/checkout@v4
@@ -41,3 +56,6 @@ jobs:
 
       - name: Testes
         run: npm test
+
+      - name: Testes e2e (concorrência)
+        run: npm run test:e2e

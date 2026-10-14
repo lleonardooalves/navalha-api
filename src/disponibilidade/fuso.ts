@@ -30,3 +30,10 @@ export function paraMinutos(instante: Date, dia: DiaLocal): number {
 export function paraInstante(minutos: number, dia: DiaLocal): Date {
   return new Date(dia.inicio.getTime() + minutos * MIN_MS);
 }
+
+export function dataLocal(instante: Date, fuso: string): string {
+  const local = new TZDate(instante.getTime(), fuso);
+  const mes = String(local.getMonth() + 1).padStart(2, '0');
+  const dia = String(local.getDate()).padStart(2, '0');
+  return `${local.getFullYear()}-${mes}-${dia}`;
+}
