@@ -3,8 +3,10 @@ import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { DisponibilidadeService } from './disponibilidade.service';
 import { DisponibilidadeRespostaDto } from './dto/disponibilidade-resposta.dto';
 import { ConsultarDisponibilidadeDto } from './dto/consultar-disponibilidade.dto';
+import { Publico } from '../auth/decorators';
 
 @ApiTags('disponibilidade')
+@Publico()
 @Controller('disponibilidade')
 export class DisponibilidadeController {
   constructor(private readonly disponibilidade: DisponibilidadeService) {}

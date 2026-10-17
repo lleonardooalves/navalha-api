@@ -12,6 +12,7 @@ async function bootstrap() {
     .setTitle('Navalha API')
     .setDescription('Agendamento para barbearias')
     .setVersion('0.1')
+    .addBearerAuth()
     .build();
 
   SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, config));

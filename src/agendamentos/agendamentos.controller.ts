@@ -9,8 +9,10 @@ import {
 import { AgendamentosService } from './agendamentos.service';
 import { AgendamentoRespostaDto } from './dto/agendamento-resposta.dto';
 import { CriarAgendamentoDto } from './dto/criar-agendamento.dto';
+import { Publico } from '../auth/decorators';
 
 @ApiTags('agendamentos')
+@Publico()
 @Controller('agendamentos')
 export class AgendamentosController {
   constructor(private readonly agendamentos: AgendamentosService) {}

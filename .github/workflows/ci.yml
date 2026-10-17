@@ -31,6 +31,7 @@ jobs:
       # mas o config precisa de um valor válido
       DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
       DATABASE_URL_TEST: postgresql://ci:ci@localhost:5432/ci_test
+      JWT_SECRET: segredo-so-para-o-ci
 
     steps:
       - uses: actions/checkout@v4
