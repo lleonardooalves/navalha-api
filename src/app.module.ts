@@ -5,7 +5,7 @@ import { DisponibilidadeModule } from './disponibilidade/disponibilidade.module'
 import { AgendamentosModule } from './agendamentos/agendamentos.module';
 import { BarbeariasModule } from './barbearias/barbearias.module';
 import { AuthModule } from './auth/auth.module';
-import { MeModule } from './auth/me.module';
+import { MeModule } from './me/me.module';
 
 @Module({
   imports: [

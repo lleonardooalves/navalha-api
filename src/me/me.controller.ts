@@ -1,9 +1,9 @@
 import { Controller, Get, NotFoundException } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import { PrismaService } from '../prisma/prisma.service';
-import { PerfilDto } from './dto/perfil.dto';
-import { UsuarioAtual } from './decorators';
-import { type UsuarioToken } from './usuario-token';
+import { PerfilDto } from '../auth/dto/perfil.dto';
+import { UsuarioAtual } from '../auth/decorators';
+import { type UsuarioToken } from '../auth/usuario-token';
 
 @ApiTags('me')
 @ApiBearerAuth()
