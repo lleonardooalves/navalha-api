@@ -9,6 +9,8 @@ import { DisponibilidadeService } from '../disponibilidade/disponibilidade.servi
 import { CriarAgendamentoDto } from './dto/criar-agendamento.dto';
 import { dataLocal, diaLocal } from '../disponibilidade/fuso';
 import { Prisma } from '../generated/prisma/client';
+import { UsuarioToken } from '../auth/usuario-token';
+import { agendamentoSelect } from './agedamento.select';
 
 @Injectable()
 export class AgendamentosService {
@@ -17,10 +19,10 @@ export class AgendamentosService {
     private readonly disponibilidade: DisponibilidadeService,
   ) {}
 
-  async criar(dto: CriarAgendamentoDto) {
+  async criar(dto: CriarAgendamentoDto, cliente: UsuarioToken) {
     //Servico e barbearia
     const servico = await this.prisma.servico.findFirst({
-      where: { id: dto.servicoId, ativo: true },
+      where: { id: dto.servicoId, ativo: true, barbeariaId: cliente.barbeariaId },
       include: { barbearia: true },
     });
 
@@ -51,12 +53,13 @@ export class AgendamentosService {
           barbeariaId: servico.barbeariaId,
           barbeiroId,
           servicoId: servico.id,
-          nomeCliente: dto.nomeCliente,
+          clienteId: cliente.id,
           observacao: dto.observacao,
           inicio,
           fim,
           precoCobradoCentavos: servico.precoCentavos,
         },
+        select: agendamentoSelect,
       });
     } catch (erro) {
       if (violouSemConflito(erro)) {
@@ -84,10 +87,15 @@ export class AgendamentosService {
   }
 }
 
-// Postgres 23P01 = exclusion_violation (a restrição sem_conflito)
+// Dois jeitos de o Postgres recusar um horário disputado:
+// 23P01 = exclusion_violation: a sem_conflito barrou porque outro já gravou
+// 40P01 = deadlock_detected: vários INSERTs no mesmo horário esperaram um pelo outro,
+//         e o Postgres cancelou alguns para destravar. Também quer dizer "perdeu a corrida".
+const CODIGOS_DE_CONFLITO = ['23P01', '40P01'];
+
 function violouSemConflito(erro: unknown): boolean {
   if (!(erro instanceof Prisma.PrismaClientKnownRequestError)) return false;
   const adapter = erro.meta?.driverAdapterError as
     { cause?: { originalCode?: string } } | undefined;
-  return adapter?.cause?.originalCode === '23P01';
+  return CODIGOS_DE_CONFLITO.includes(adapter?.cause?.originalCode ?? '');
 }

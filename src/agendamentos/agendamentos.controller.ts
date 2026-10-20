@@ -1,18 +1,21 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import {
+  ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiNotFoundResponse,
   ApiTags,
+  ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import { AgendamentosService } from './agendamentos.service';
 import { AgendamentoRespostaDto } from './dto/agendamento-resposta.dto';
 import { CriarAgendamentoDto } from './dto/criar-agendamento.dto';
-import { Publico } from '../auth/decorators';
+import { UsuarioAtual } from '../auth/decorators';
+import type { UsuarioToken } from '../auth/usuario-token';
 
 @ApiTags('agendamentos')
-@Publico()
+@ApiBearerAuth()
 @Controller('agendamentos')
 export class AgendamentosController {
   constructor(private readonly agendamentos: AgendamentosService) {}
@@ -22,7 +25,11 @@ export class AgendamentosController {
   @ApiNotFoundResponse({ description: 'Serviço não encontrado' })
   @ApiUnprocessableEntityResponse({ description: 'Horário fora da disponibilidade' })
   @ApiConflictResponse({ description: 'Horário acabou de ser ocupado' })
-  criar(@Body() dto: CriarAgendamentoDto): Promise<AgendamentoRespostaDto> {
-    return this.agendamentos.criar(dto);
+  @ApiUnauthorizedResponse({ description: 'Sem login' })
+  criar(
+    @Body() dto: CriarAgendamentoDto,
+    @UsuarioAtual() cliente: UsuarioToken,
+  ): Promise<AgendamentoRespostaDto> {
+    return this.agendamentos.criar(dto, cliente);
   }
 }

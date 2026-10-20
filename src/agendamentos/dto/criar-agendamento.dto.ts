@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsISO8601, IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsISO8601, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 export class CriarAgendamentoDto {
   @ApiProperty({ format: 'uuid' })
@@ -17,12 +17,6 @@ export class CriarAgendamentoDto {
   @IsOptional()
   @IsUUID()
   barbeiroId?: string;
-
-  @ApiProperty({ example: 'João', description: 'Temporário, até existir login' })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(80)
-  nomeCliente: string;
 
   @ApiPropertyOptional({ example: 'Degradê baixo, por favor' })
   @IsOptional()
