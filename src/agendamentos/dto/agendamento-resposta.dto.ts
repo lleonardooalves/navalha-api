@@ -1,14 +1,27 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
+
+export class ServicoResumoDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ example: 'Corte' })
+  nome: string;
+
+  @ApiProperty({ example: 30 })
+  duracaoMin: number;
+}
+
+export class BarbeiroResumoDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ example: 'Zé' })
+  nomeExibicao: string;
+}
 
 export class AgendamentoRespostaDto {
   @ApiProperty({ format: 'uuid' })
   id: string;
-
-  @ApiProperty({ format: 'uuid' })
-  barbeiroId: string;
-
-  @ApiProperty({ format: 'uuid' })
-  servicoId: string;
 
   @ApiProperty()
   inicio: Date;
@@ -22,9 +35,12 @@ export class AgendamentoRespostaDto {
   @ApiProperty({ example: 4500 })
   precoCobradoCentavos: number;
 
-  @ApiPropertyOptional({ type: String, nullable: true })
-  nomeCliente: string | null;
-
-  @ApiPropertyOptional({ type: String, nullable: true })
+  @ApiProperty({ type: String, nullable: true, example: 'Degradê baixo, por favor' })
   observacao: string | null;
+
+  @ApiProperty({ type: ServicoResumoDto })
+  servico: ServicoResumoDto;
+
+  @ApiProperty({ type: BarbeiroResumoDto })
+  barbeiro: BarbeiroResumoDto;
 }
