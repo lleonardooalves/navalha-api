@@ -11,6 +11,9 @@ import { TokensRespostaDto } from './dto/tokens-resposta.dto';
 import * as argon2 from 'argon2';
 import { Prisma } from '../generated/prisma/client';
 import { LoginDto } from './dto/login.dto';
+import { createHash, randomBytes } from 'node:crypto';
+
+const REFRESH_DIAS = 30;
 
 @Injectable()
 export class AuthService {
@@ -21,7 +24,7 @@ export class AuthService {
 
   async cadastrar(dto: CadastroDto): Promise<TokensRespostaDto> {
     const barbearia = await this.prisma.barbearia.findUnique({ where: { slug: dto.slug } });
-    if (!barbearia) throw new NotFoundException('Barbearia não econtrada');
+    if (!barbearia) throw new NotFoundException('Barbearia não encontrada');
 
     try {
       const usuario = await this.prisma.usuario.create({
@@ -54,6 +57,43 @@ export class AuthService {
     return this.gerarTokens(usuario);
   }
 
+  async renovar(refreshToken: string): Promise<TokensRespostaDto> {
+    const sessao = await this.prisma.sessao.findUnique({
+      where: { tokenHash: hashDoToken(refreshToken) },
+      include: { usuario: true },
+    });
+    if (!sessao) throw new UnauthorizedException('Sessão Inválida');
+
+    //token usado sendo usado denovo provavelmente foi roubado então derruba todas sessões do usuário
+    if (sessao.revogadaEm) {
+      await this.prisma.sessao.updateMany({
+        where: { usuarioId: sessao.usuarioId, revogadaEm: null },
+        data: { revogadaEm: new Date() },
+      });
+      throw new UnauthorizedException('Sessão inválida');
+    }
+
+    if (sessao.expiraEm <= new Date()) throw new UnauthorizedException('Sessão expirada');
+
+    // revoga a sessão atual; o "revogadaEm: null" no where faz o banco
+    // garantir que, entre duas renovações simultâneas, só uma vence
+    const { count } = await this.prisma.sessao.updateMany({
+      where: { id: sessao.id, revogadaEm: null },
+      data: { revogadaEm: new Date() },
+    });
+
+    if (count === 0) throw new UnauthorizedException('Sessão inválida');
+
+    return this.gerarTokens(sessao.usuario);
+  }
+
+  async sair(refreshToken: string): Promise<void> {
+    await this.prisma.sessao.updateMany({
+      where: { tokenHash: hashDoToken(refreshToken), revogadaEm: null },
+      data: { revogadaEm: new Date() },
+    });
+  }
+
   private async gerarTokens(usuario: {
     id: string;
     barbeariaId: string;
@@ -64,10 +104,25 @@ export class AuthService {
       barbeariaId: usuario.barbeariaId,
       papel: usuario.papel,
     });
-    return { accessToken };
+
+    const refreshToken = randomBytes(32).toString('base64url');
+    await this.prisma.sessao.create({
+      data: {
+        barbeariaid: usuario.barbeariaId,
+        usuarioId: usuario.id,
+        tokenHash: hashDoToken(refreshToken),
+        expiraEm: new Date(Date.now() + REFRESH_DIAS * 24 * 60 * 60 * 1000),
+      },
+    });
+    return { accessToken, refreshToken };
   }
 }
 
 function normalizarEmail(email: string) {
   return email.trim().toLowerCase();
+}
+
+// o refresh token é aleatório e longo, então SHA-256 basta (e permite buscar pelo hash)
+function hashDoToken(token: string) {
+  return createHash('sha256').update(token).digest('hex');
 }

@@ -61,6 +61,7 @@ model Barbearia {
   expedientes  Expediente[]
   bloqueios    Bloqueio[]
   agendamentos Agendamento[]
+  sessoes     Sessao[]
 
   @@map("barbearias")
 }
@@ -80,6 +81,7 @@ model Usuario {
   barbearia    Barbearia     @relation(fields: [barbeariaId], references: [id])
   barbeiro     Barbeiro?
   agendamentos Agendamento[]
+  sessoes      Sessao[]
 
   @@unique([barbeariaId, email])
   @@map("usuarios")
@@ -180,4 +182,22 @@ model Agendamento {
   @@index([barbeiroId, inicio])
   @@index([clienteId, inicio])
   @@map("agendamentos")
+}
+
+model Sessao {
+  id String @id @default(uuid(7)) @db.Uuid
+  barbeariaid String @map("barbearia_id") @db.Uuid
+  usuarioId String @map("usuario_id") @db.Uuid
+  tokenHash String @unique @map("token_hash")
+  expiraEm DateTime @map("expira_em") @db.Timestamptz()
+  revogadaEm DateTime? @map("revogada_em") @db.Timestamptz()
+
+  criadoEm DateTime @default(now()) @map("criado_em") @db.Timestamptz()
+
+  barbearia Barbearia @relation(fields: [barbeariaid], references: [id])
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@map("sessoes")
+
 }
