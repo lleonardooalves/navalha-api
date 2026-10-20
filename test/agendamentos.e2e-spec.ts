@@ -119,13 +119,20 @@ describe('Agendamentos (e2e)', () => {
 
   it('não agenda serviço de outra barbearia', async () => {
     const token = await novoCliente('intruso');
-    const resposta = await agendar(token, { servicoId: servicoOutraBarbeariaId, inicio: DEZ_HORAS });
+    const resposta = await agendar(token, {
+      servicoId: servicoOutraBarbeariaId,
+      inicio: DEZ_HORAS,
+    });
     expect(resposta.status).toBe(404);
   });
 
   it('recusa horário fora da grade com 422', async () => {
     const token = await novoCliente('ana');
-    const resposta = await agendar(token, { servicoId, barbeiroId, inicio: `${DIA}T12:07:00.000Z` });
+    const resposta = await agendar(token, {
+      servicoId,
+      barbeiroId,
+      inicio: `${DIA}T12:07:00.000Z`,
+    });
     expect(resposta.status).toBe(422);
   });
 
