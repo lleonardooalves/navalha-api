@@ -1,9 +1,10 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, HttpCode, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiNotFoundResponse,
+  ApiOkResponse,
   ApiTags,
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
@@ -31,5 +32,17 @@ export class AgendamentosController {
     @UsuarioAtual() cliente: UsuarioToken,
   ): Promise<AgendamentoRespostaDto> {
     return this.agendamentos.criar(dto, cliente);
+  }
+
+  @Post(':id/cancelar')
+  @HttpCode(200)
+  @ApiOkResponse({ type: AgendamentoRespostaDto })
+  @ApiNotFoundResponse({ description: 'Agendamento não encontrado' })
+  @ApiUnprocessableEntityResponse({ description: 'Fora do prazo ou já encerrad' })
+  cancelar(
+    @Param('id', ParseUUIDPipe) id: string,
+    @UsuarioAtual() cliente: UsuarioToken,
+  ): Promise<AgendamentoRespostaDto> {
+    return this.agendamentos.cancelar(id, cliente);
   }
 }

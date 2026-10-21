@@ -169,4 +169,63 @@ describe('Agendamentos (e2e)', () => {
       .set('Authorization', `Bearer ${tokenBia}`);
     expect(passadosDaBia.body).toEqual([]);
   });
+
+  describe('cancelamento', () => {
+    const cancelar = (token: string, id: string) =>
+      request(app.getHttpServer())
+        .post(`/agendamentos/${id}/cancelar`)
+        .set('Authorization', `Bearer ${token}`);
+
+    it('o cliente cancela o próprio agendamento e o horário volta a ficar livre', async () => {
+      const tokenDani = await novoCliente('dani');
+      const criado = await agendar(tokenDani, { servicoId, inicio: `${DIA}T13:30:00.000Z` });
+      expect(criado.status).toBe(201);
+
+      const cancelado = await cancelar(tokenDani, criado.body.id);
+      expect(cancelado.status).toBe(200);
+      expect(cancelado.body.status).toBe('cancelado');
+
+      const proximos = await request(app.getHttpServer())
+        .get('/me/agendamentos')
+        .set('Authorization', `Bearer ${tokenDani}`);
+      expect(proximos.body).toEqual([]);
+
+      // a sem_conflito só olha agendamentos ativos, então outro cliente pode pegar o horário
+      const tokenEdu = await novoCliente('edu');
+      const deNovo = await agendar(tokenEdu, { servicoId, inicio: `${DIA}T13:30:00.000Z` });
+      expect(deNovo.status).toBe(201);
+    });
+
+    it('outro cliente não cancela, e ninguém cancela duas vezes', async () => {
+      const tokenFabio = await novoCliente('fabio');
+      const tokenGabi = await novoCliente('gabi');
+      const criado = await agendar(tokenFabio, { servicoId, inicio: `${DIA}T14:00:00.000Z` });
+
+      const daGabi = await cancelar(tokenGabi, criado.body.id);
+      expect(daGabi.status).toBe(404);
+
+      expect((await cancelar(tokenFabio, criado.body.id)).status).toBe(200);
+      expect((await cancelar(tokenFabio, criado.body.id)).status).toBe(422);
+    });
+
+    it('fora do prazo de cancelamento responde 422', async () => {
+      const tokenHeitor = await novoCliente('heitor');
+      const criado = await agendar(tokenHeitor, { servicoId, inicio: `${DIA}T14:30:00.000Z` });
+
+      // prazo de 10 anos: o horário de 2030 já está "dentro do prazo"
+      await prisma.barbearia.update({
+        where: { slug: SLUG },
+        data: { prazoCancelamentoMin: 10 * 365 * 24 * 60 },
+      });
+      const resposta = await cancelar(tokenHeitor, criado.body.id);
+      await prisma.barbearia.update({ where: { slug: SLUG }, data: { prazoCancelamentoMin: 120 } });
+
+      expect(resposta.status).toBe(422);
+    });
+
+    it('id que não é UUID responde 400', async () => {
+      const token = await novoCliente('ivo');
+      expect((await cancelar(token, 'abc')).status).toBe(400);
+    });
+  });
 });
