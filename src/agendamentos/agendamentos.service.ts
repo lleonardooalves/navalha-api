@@ -85,6 +85,37 @@ export class AgendamentosService {
 
     return [...ids].sort((a, b) => total(a) - total(b))[0];
   }
+
+  async cancelar(id: string, cliente: UsuarioToken) {
+    const agendamento = await this.prisma.agendamento.findFirst({
+      where: { id, clienteId: cliente.id },
+      include: { barbearia: true },
+    });
+    if (!agendamento) throw new NotFoundException('Agendamento não econtrado');
+
+    if (!['pendente', 'confirmado'].includes(agendamento.status)) {
+      throw new UnprocessableEntityException('Este agendamento não pode mais ser cancelado');
+    }
+
+    const prazoMin = agendamento.barbearia.prazoCancelamentoMin;
+    const limite = new Date(agendamento.inicio.getTime() - prazoMin * 60_000);
+
+    if (new Date() > limite) {
+      throw new UnprocessableEntityException(
+        `Cancelamento só até ${prazoMin} minutos até o horário`,
+      );
+    }
+
+    const { count } = await this.prisma.agendamento.updateMany({
+      where: { id, status: { in: ['pendente', 'confirmado'] } },
+      data: { status: 'cancelado' },
+    });
+    if (count === 0) {
+      throw new UnprocessableEntityException('Este agendamento não pode mais ser cancelado');
+    }
+
+    return this.prisma.agendamento.findUniqueOrThrow({ where: { id }, select: agendamentoSelect });
+  }
 }
 
 // Dois jeitos de o Postgres recusar um horário disputado:

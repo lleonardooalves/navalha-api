@@ -1,6 +1,5 @@
-import { Body, Controller, Get, NotFoundException, Query } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
-import { PrismaService } from '../prisma/prisma.service';
 import { PerfilDto } from './dto/perfil.dto';
 import { UsuarioAtual } from '../auth/decorators';
 import { type UsuarioToken } from '../auth/usuario-token';
