@@ -5,6 +5,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { PapeisGuard } from './papeis.guard';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
     AuthService,
     //todas as rotas da API passam exigir login, menos as marcadas com @Publico
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: PapeisGuard },
   ],
 })
 export class AuthModule {}

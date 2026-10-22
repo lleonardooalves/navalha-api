@@ -10,7 +10,7 @@ import { CriarAgendamentoDto } from './dto/criar-agendamento.dto';
 import { dataLocal, diaLocal } from '../disponibilidade/fuso';
 import { Prisma } from '../generated/prisma/client';
 import { UsuarioToken } from '../auth/usuario-token';
-import { agendamentoSelect } from './agedamento.select';
+import { agendamentoSelect } from './agendamento.select';
 
 @Injectable()
 export class AgendamentosService {

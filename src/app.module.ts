@@ -6,6 +6,7 @@ import { AgendamentosModule } from './agendamentos/agendamentos.module';
 import { BarbeariasModule } from './barbearias/barbearias.module';
 import { AuthModule } from './auth/auth.module';
 import { MeModule } from './me/me.module';
+import { BarbeiroModule } from './barbeiro/barbeiro.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { MeModule } from './me/me.module';
     BarbeariasModule,
     AuthModule,
     MeModule,
+    BarbeiroModule,
   ],
 })
 export class AppModule {}
