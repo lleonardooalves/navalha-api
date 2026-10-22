@@ -4,7 +4,7 @@ import { PerfilDto } from './dto/perfil.dto';
 import { Periodo } from './dto/listar-agendamentos.dto';
 import { AgendamentoRespostaDto } from '../agendamentos/dto/agendamento-resposta.dto';
 import { Prisma } from '../generated/prisma/client';
-import { agendamentoSelect } from '../agendamentos/agedamento.select';
+import { agendamentoSelect } from '../agendamentos/agendamento.select';
 
 @Injectable()
 export class MeService {
