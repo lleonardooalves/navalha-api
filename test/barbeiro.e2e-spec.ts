@@ -34,7 +34,9 @@ describe('Barbeiro (e2e)', () => {
       .post('/auth/cadastro')
       .send({ slug: SLUG, nome, email: `${nome}@teste.com`, senha: SENHA });
   const entrar = (nome: string) =>
-    http().post('/auth/login').send({ slug: SLUG, email: `${nome}@teste.com`, senha: SENHA });
+    http()
+      .post('/auth/login')
+      .send({ slug: SLUG, email: `${nome}@teste.com`, senha: SENHA });
 
   beforeAll(async () => {
     const modulo = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -61,8 +63,20 @@ describe('Barbeiro (e2e)', () => {
     });
     await prisma.expediente.createMany({
       data: [
-        { barbeariaId: barbearia.id, barbeiroId: barbeiro.id, diaSemana: 2, inicioMin: 540, fimMin: 720 },
-        { barbeariaId: barbearia.id, barbeiroId: barbeiro.id, diaSemana: 2, inicioMin: 810, fimMin: 1140 },
+        {
+          barbeariaId: barbearia.id,
+          barbeiroId: barbeiro.id,
+          diaSemana: 2,
+          inicioMin: 540,
+          fimMin: 720,
+        },
+        {
+          barbeariaId: barbearia.id,
+          barbeiroId: barbeiro.id,
+          diaSemana: 2,
+          inicioMin: 810,
+          fimMin: 1140,
+        },
       ],
     });
 

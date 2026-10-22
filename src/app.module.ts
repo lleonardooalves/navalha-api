@@ -17,7 +17,7 @@ import { BarbeiroModule } from './barbeiro/barbeiro.module';
     BarbeariasModule,
     AuthModule,
     MeModule,
-    BarbeiroModule
+    BarbeiroModule,
   ],
 })
 export class AppModule {}
