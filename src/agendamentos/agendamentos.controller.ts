@@ -38,7 +38,7 @@ export class AgendamentosController {
   @HttpCode(200)
   @ApiOkResponse({ type: AgendamentoRespostaDto })
   @ApiNotFoundResponse({ description: 'Agendamento não encontrado' })
-  @ApiUnprocessableEntityResponse({ description: 'Fora do prazo ou já encerrad' })
+  @ApiUnprocessableEntityResponse({ description: 'Fora do prazo ou já encerrado' })
   cancelar(
     @Param('id', ParseUUIDPipe) id: string,
     @UsuarioAtual() cliente: UsuarioToken,

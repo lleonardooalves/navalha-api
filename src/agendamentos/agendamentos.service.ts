@@ -91,7 +91,7 @@ export class AgendamentosService {
       where: { id, clienteId: cliente.id },
       include: { barbearia: true },
     });
-    if (!agendamento) throw new NotFoundException('Agendamento não econtrado');
+    if (!agendamento) throw new NotFoundException('Agendamento não encontrado');
 
     if (!['pendente', 'confirmado'].includes(agendamento.status)) {
       throw new UnprocessableEntityException('Este agendamento não pode mais ser cancelado');
@@ -102,7 +102,7 @@ export class AgendamentosService {
 
     if (new Date() > limite) {
       throw new UnprocessableEntityException(
-        `Cancelamento só até ${prazoMin} minutos até o horário`,
+        `Cancelamento só até ${prazoMin} minutos antes do horário`,
       );
     }
 
