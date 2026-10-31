@@ -7,6 +7,7 @@ import { BarbeariasModule } from './barbearias/barbearias.module';
 import { AuthModule } from './auth/auth.module';
 import { MeModule } from './me/me.module';
 import { BarbeiroModule } from './barbeiro/barbeiro.module';
+import { DonoModule } from './dono/dono.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { BarbeiroModule } from './barbeiro/barbeiro.module';
     AuthModule,
     MeModule,
     BarbeiroModule,
+    DonoModule,
   ],
 })
 export class AppModule {}

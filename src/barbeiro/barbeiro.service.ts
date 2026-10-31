@@ -5,11 +5,12 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type { UsuarioToken } from '../auth/usuario-token';
-import { dataLocal, diaLocal, paraInstante } from '../disponibilidade/fuso';
+import { dataLocal, type DiaLocal, diaLocal, paraInstante } from '../disponibilidade/fuso';
 import { PrismaService } from '../prisma/prisma.service';
 import { AgendaBarbeiroDto, BloqueioDto } from './dto/agenda-barbeiro.dto';
 import { CriarBloqueioDto } from './dto/criar-bloqueio.dto';
 import { bloqueioSelect } from './bloqueio.select';
+import { Prisma } from '../generated/prisma/client';
 
 @Injectable()
 export class BarbeiroService {
@@ -21,50 +22,68 @@ export class BarbeiroService {
 
     const { fuso } = barbeiro.barbearia;
     const dataDia = data ?? dataLocal(new Date(), fuso);
-    const dia = diaLocal(dataDia, fuso);
-    const doDia = { barbeiroId: barbeiro.id, inicio: { lt: dia.fim }, fim: { gt: dia.inicio } };
-
-    const [expedientes, bloqueios, agendamentos] = await Promise.all([
-      this.prisma.expediente.findMany({
-        where: { barbeiroId: barbeiro.id, diaSemana: dia.diaSemana },
-        orderBy: { inicioMin: 'asc' },
-      }),
-      this.prisma.bloqueio.findMany({
-        where: doDia,
-        select: { id: true, inicio: true, fim: true, motivo: true, observacao: true },
-        orderBy: { inicio: 'asc' },
-      }),
-      this.prisma.agendamento.findMany({
-        // tudo do dia, menos o que foi cancelado
-        where: { ...doDia, status: { not: 'cancelado' } },
-        select: {
-          id: true,
-          inicio: true,
-          fim: true,
-          status: true,
-          precoCobradoCentavos: true,
-          observacao: true,
-          nomeCliente: true,
-          servico: { select: { id: true, nome: true, duracaoMin: true } },
-          cliente: { select: { nome: true, telefone: true } },
-        },
-        orderBy: { inicio: 'asc' },
-      }),
-    ]);
+    const [agenda] = await this.agendasDoDia({ id: barbeiro.id }, diaLocal(dataDia, fuso));
 
     return {
       data: dataDia,
-      turnos: expedientes.map((e) => ({
+      turnos: agenda.turnos,
+      atendimentos: agenda.atendimentos,
+      bloqueios: agenda.bloqueios,
+    };
+  }
+
+  // o dia de cada barbeiro do where; o Prisma busca as relações de todos juntos (IN)
+  async agendasDoDia(where: Prisma.BarbeiroWhereInput, dia: DiaLocal) {
+    const doDia = { inicio: { lt: dia.fim }, fim: { gt: dia.inicio } };
+
+    const barbeiros = await this.prisma.barbeiro.findMany({
+      where,
+      orderBy: { nomeExibicao: 'asc' },
+      select: {
+        id: true,
+        nomeExibicao: true,
+        expedientes: {
+          where: { diaSemana: dia.diaSemana },
+          orderBy: { inicioMin: 'asc' },
+        },
+        bloqueios: {
+          where: doDia,
+          select: bloqueioSelect,
+          orderBy: { inicio: 'asc' },
+        },
+        agendamentos: {
+          // tudo do dia, menos o que foi cancelado
+          where: { ...doDia, status: { not: 'cancelado' } },
+          select: {
+            id: true,
+            inicio: true,
+            fim: true,
+            status: true,
+            precoCobradoCentavos: true,
+            observacao: true,
+            nomeCliente: true,
+            servico: { select: { id: true, nome: true, duracaoMin: true } },
+            cliente: { select: { nome: true, telefone: true } },
+          },
+          orderBy: { inicio: 'asc' },
+        },
+      },
+    });
+
+    return barbeiros.map((barbeiro) => ({
+      id: barbeiro.id,
+      nome: barbeiro.nomeExibicao,
+      turnos: barbeiro.expedientes.map((e) => ({
         inicio: paraInstante(e.inicioMin, dia),
         fim: paraInstante(e.fimMin, dia),
       })),
       // quem agendou pelo app tem conta; quem foi encaixado só tem o nome
-      atendimentos: agendamentos.map(({ nomeCliente, cliente, ...resto }) => ({
+      atendimentos: barbeiro.agendamentos.map(({ nomeCliente, cliente, ...resto }) => ({
         ...resto,
         cliente: cliente ?? { nome: nomeCliente ?? 'Cliente', telefone: null },
       })),
-      bloqueios,
-    };
+      bloqueios: barbeiro.bloqueios,
+    }));
   }
 
   async criarBloqueio(usuario: UsuarioToken, dto: CriarBloqueioDto): Promise<BloqueioDto> {
@@ -119,7 +138,7 @@ export class BarbeiroService {
       where: { id, barbeiroId: barbeiro.id },
     });
 
-    if (count === 0) throw new NotFoundException('Bloqueio não econtrado');
+    if (count === 0) throw new NotFoundException('Bloqueio não encontrado');
   }
 
   private async barbeiroDoUsuario(usuario: UsuarioToken) {
