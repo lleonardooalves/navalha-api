@@ -56,10 +56,8 @@ export class BloqueioDto extends IntervaloDto {
   observacao: string | null;
 }
 
-export class AgendaBarbeiroDto {
-  @ApiProperty({ example: '2026-10-20' })
-  data: string;
-
+// o dia de um barbeiro: serve para a agenda dele e para cada coluna da agenda do dono
+export class DiaBarbeiroDto {
   @ApiProperty({ type: [IntervaloDto], description: 'Turnos de expedientes no dia' })
   turnos: IntervaloDto[];
 
@@ -68,4 +66,9 @@ export class AgendaBarbeiroDto {
 
   @ApiProperty({ type: [BloqueioDto] })
   bloqueios: BloqueioDto[];
+}
+
+export class AgendaBarbeiroDto extends DiaBarbeiroDto {
+  @ApiProperty({ example: '2026-10-20' })
+  data: string;
 }
