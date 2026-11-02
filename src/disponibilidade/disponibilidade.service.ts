@@ -7,6 +7,7 @@ type Consulta = {
   data: string;
   servicoId: string;
   barbeiroId?: string;
+  semAntecedencia?: boolean;
 };
 
 export type HorarioDisponivel = {
@@ -18,7 +19,12 @@ export type HorarioDisponivel = {
 export class DisponibilidadeService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async buscar({ data, servicoId, barbeiroId }: Consulta): Promise<HorarioDisponivel[]> {
+  async buscar({
+    data,
+    servicoId,
+    barbeiroId,
+    semAntecedencia,
+  }: Consulta): Promise<HorarioDisponivel[]> {
     const servico = await this.prisma.servico.findFirst({
       where: { id: servicoId, ativo: true },
       include: { barbearia: true },
@@ -55,7 +61,8 @@ export class DisponibilidadeService {
 
     const agoraMin = paraMinutos(new Date(), dia);
     const antesDoDia = Date.now() < dia.inicio.getTime();
-    const minimoInicio = antesDoDia ? 0 : agoraMin + barbearia.antecedenciaMinimaMin;
+    const antecedencia = semAntecedencia ? 0 : barbearia.antecedenciaMinimaMin;
+    const minimoInicio = antesDoDia ? 0 : agoraMin + antecedencia;
 
     const intervalo = barbearia.intervaloAtendimentoMin;
     const livresPorMinuto = new Map<number, string[]>();

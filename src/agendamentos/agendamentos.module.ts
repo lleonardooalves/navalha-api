@@ -7,5 +7,6 @@ import { AgendamentosService } from './agendamentos.service';
   imports: [DisponibilidadeModule],
   controllers: [AgendamentosController],
   providers: [AgendamentosService],
+  exports: [AgendamentosService],
 })
 export class AgendamentosModule {}
