@@ -33,6 +33,8 @@ describe('Dono (e2e)', () => {
   let prisma: PrismaService;
   let tokenDono: string;
   let tokenBarbeiro: string;
+  let servicoId: string;
+  let zeId: string;
 
   const http = () => request(app.getHttpServer());
   const cadastrar = (nome: string) =>
@@ -74,9 +76,11 @@ describe('Dono (e2e)', () => {
     const servico = await prisma.servico.create({
       data: { barbeariaId: barbearia.id, nome: 'Corte', duracaoMin: 30, precoCentavos: 4500 },
     });
+    servicoId = servico.id;
 
     // o dono também corta cabelo, então ele tem uma coluna como os outros
     const ze = await criarBarbeiro(barbearia.id, 'ze', 'Zé', 'dono');
+    zeId = ze.id;
     const pedro = await criarBarbeiro(barbearia.id, 'pedro', 'Pedro', 'barbeiro');
     await prisma.barbeiro.create({
       data: { barbeariaId: barbearia.id, nomeExibicao: 'Antigo', ativo: false },
@@ -161,5 +165,70 @@ describe('Dono (e2e)', () => {
   it('sem login responde 401, e data inválida responde 400', async () => {
     expect((await http().get(`/dono/agenda?data=${DIA}`)).status).toBe(401);
     expect((await agenda(tokenDono, '15-01-2030')).status).toBe(400);
+  });
+
+  describe('encaixe', () => {
+    // o relógio para em 10:07 de São Paulo, no DIA: pelo app, o primeiro horário seria 11:15
+    beforeAll(async () => {
+      jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'setTimeout', 'setInterval'] });
+      jest.setSystemTime(new Date(`${DIA}T13:07:00.000Z`));
+      // o token vale 15 min: os de antes ficaram "vencidos" no relógio novo
+      tokenDono = (await entrar('ze')).body.accessToken;
+      tokenBarbeiro = (await entrar('pedro')).body.accessToken;
+    });
+    afterAll(() => {
+      jest.useRealTimers();
+    });
+
+    const encaixar = (token: string, corpo: object) =>
+      http().post('/dono/encaixes').set('Authorization', `Bearer ${token}`).send(corpo);
+    const corpo = (inicio: string) => ({
+      servicoId,
+      barbeiroId: zeId,
+      inicio,
+      nomeCliente: ' Marcos ',
+      origem: 'presencial',
+    });
+
+    it('encaixa no próximo horário da grade, sem a antecedência mínima', async () => {
+      // 13:15Z = 10:15 em São Paulo
+      const resposta = await encaixar(tokenDono, corpo(`${DIA}T13:15:00.000Z`));
+
+      expect(resposta.status).toBe(201);
+      expect(resposta.body).toMatchObject({
+        inicio: `${DIA}T13:15:00.000Z`,
+        fim: `${DIA}T13:45:00.000Z`,
+        barbeiro: { id: zeId },
+      });
+
+      const gravado = await prisma.agendamento.findUniqueOrThrow({
+        where: { id: resposta.body.id },
+      });
+      expect(gravado).toMatchObject({
+        nomeCliente: 'Marcos',
+        origem: 'presencial',
+        clienteId: null,
+      });
+
+      const dia = await agenda(tokenDono);
+      const ze = dia.body.barbeiros.find((b: { id: string }) => b.id === zeId);
+      expect(ze.atendimentos[0].cliente).toEqual({ nome: 'Marcos', telefone: null });
+    });
+
+    it('recusa outro dia, horário que já passou e horário ocupado (422)', async () => {
+      expect((await encaixar(tokenDono, corpo('2030-01-16T13:15:00.000Z'))).status).toBe(422);
+      expect((await encaixar(tokenDono, corpo(`${DIA}T12:00:00.000Z`))).status).toBe(422);
+      expect((await encaixar(tokenDono, corpo(`${DIA}T13:15:00.000Z`))).status).toBe(422);
+    });
+
+    it('valida o corpo (400) e barra quem não é dono (403)', async () => {
+      const origemApp = await encaixar(tokenDono, {
+        ...corpo(`${DIA}T14:00:00.000Z`),
+        origem: 'app',
+      });
+      expect(origemApp.status).toBe(400);
+
+      expect((await encaixar(tokenBarbeiro, corpo(`${DIA}T14:00:00.000Z`))).status).toBe(403);
+    });
   });
 });

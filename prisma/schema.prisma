@@ -39,6 +39,15 @@ enum MotivoBloqueio {
   @@map("motivo_bloqueio")
 }
 
+// por onde o agendamento chegou: a métrica de app x WhatsApp sai daqui
+enum OrigemAgendamento {
+  app
+  whatsapp
+  presencial
+
+  @@map("origem_agendamento")
+}
+
 model Barbearia {
   id       String  @id @default(uuid(7)) @db.Uuid
   nome     String
@@ -167,6 +176,7 @@ model Agendamento {
   inicio               DateTime          @db.Timestamptz()
   fim                  DateTime          @db.Timestamptz()
   status               StatusAgendamento @default(confirmado)
+  origem               OrigemAgendamento @default(app)
   expiraEm             DateTime?         @map("expira_em") @db.Timestamptz()
   precoCobradoCentavos Int               @map("preco_cobrado_centavos")
   observacao           String?

@@ -8,9 +8,17 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DisponibilidadeService } from '../disponibilidade/disponibilidade.service';
 import { CriarAgendamentoDto } from './dto/criar-agendamento.dto';
 import { dataLocal, diaLocal } from '../disponibilidade/fuso';
-import { Prisma } from '../generated/prisma/client';
+import { Prisma, type OrigemAgendamento } from '../generated/prisma/client';
 import { UsuarioToken } from '../auth/usuario-token';
 import { agendamentoSelect } from './agendamento.select';
+
+export type Reserva = CriarAgendamentoDto & {
+  barbeariaId: string;
+  clienteId?: string;
+  nomeCliente?: string;
+  origem?: OrigemAgendamento;
+  semAntecedencia?: boolean;
+};
 
 @Injectable()
 export class AgendamentosService {
@@ -20,31 +28,33 @@ export class AgendamentosService {
   ) {}
 
   async criar(dto: CriarAgendamentoDto, cliente: UsuarioToken) {
-    //Servico e barbearia
+    return this.reservar({ ...dto, barbeariaId: cliente.barbeariaId, clienteId: cliente.id });
+  }
+
+  async reservar(reserva: Reserva) {
     const servico = await this.prisma.servico.findFirst({
-      where: { id: dto.servicoId, ativo: true, barbeariaId: cliente.barbeariaId },
+      where: { id: reserva.servicoId, ativo: true, barbeariaId: reserva.barbeariaId },
       include: { barbearia: true },
     });
 
     if (!servico) throw new NotFoundException('Serviço não encontrado');
 
-    const inicio = new Date(dto.inicio);
+    const inicio = new Date(reserva.inicio);
     const fim = new Date(inicio.getTime() + servico.duracaoMin * 60_000);
     const data = dataLocal(inicio, servico.barbearia.fuso);
 
-    //O horario pedido esta entre os oferecidos
     const horarios = await this.disponibilidade.buscar({
       data,
       servicoId: servico.id,
-      barbeiroId: dto.barbeiroId,
+      barbeiroId: reserva.barbeiroId,
+      semAntecedencia: reserva.semAntecedencia,
     });
 
     const horario = horarios.find((h) => h.inicio.getTime() === inicio.getTime());
     if (!horario) throw new UnprocessableEntityException('Horário não disponível');
 
-    //Qual barbeiro
     const barbeiroId =
-      dto.barbeiroId ??
+      reserva.barbeiroId ??
       (await this.menosOcupado(horario.barbeiroIds, data, servico.barbearia.fuso));
 
     try {
@@ -53,8 +63,10 @@ export class AgendamentosService {
           barbeariaId: servico.barbeariaId,
           barbeiroId,
           servicoId: servico.id,
-          clienteId: cliente.id,
-          observacao: dto.observacao,
+          clienteId: reserva.clienteId,
+          nomeCliente: reserva.nomeCliente,
+          origem: reserva.origem,
+          observacao: reserva.observacao,
           inicio,
           fim,
           precoCobradoCentavos: servico.precoCentavos,
