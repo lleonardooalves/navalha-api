@@ -25,6 +25,7 @@ import { BarbeiroService } from './barbeiro.service';
 import { AgendaBarbeiroDto, BloqueioDto, ConsultarAgendaDto } from './dto/agenda-barbeiro.dto';
 import type { UsuarioToken } from '../auth/usuario-token';
 import { CriarBloqueioDto } from './dto/criar-bloqueio.dto';
+import { AgendamentoRespostaDto } from '../agendamentos/dto/agendamento-resposta.dto';
 
 @ApiTags('barbeiro')
 @ApiBearerAuth()
@@ -65,5 +66,29 @@ export class BarbeiroController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
     return this.barbeiro.removerBloqueio(usuario, id);
+  }
+
+  @Post('atendimentos/:id/concluir')
+  @HttpCode(200)
+  @ApiOkResponse({ type: AgendamentoRespostaDto })
+  @ApiNotFoundResponse({ description: 'Atendimento não encontrado' })
+  @ApiUnprocessableEntityResponse({ description: 'Ainda não começou ou já foi encerrado' })
+  concluir(
+    @UsuarioAtual() usuario: UsuarioToken,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<AgendamentoRespostaDto> {
+    return this.barbeiro.concluir(usuario, id);
+  }
+
+  @Post('atendimentos/:id/falta')
+  @HttpCode(200)
+  @ApiOkResponse({ type: AgendamentoRespostaDto })
+  @ApiNotFoundResponse({ description: 'Atendimento não encontrado' })
+  @ApiUnprocessableEntityResponse({ description: 'Dentro da tolerância ou já encerrado' })
+  marcarFalta(
+    @UsuarioAtual() usuario: UsuarioToken,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<AgendamentoRespostaDto> {
+    return this.barbeiro.marcarFalta(usuario, id);
   }
 }

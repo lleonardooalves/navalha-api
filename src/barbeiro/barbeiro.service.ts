@@ -11,6 +11,7 @@ import { AgendaBarbeiroDto, BloqueioDto } from './dto/agenda-barbeiro.dto';
 import { CriarBloqueioDto } from './dto/criar-bloqueio.dto';
 import { bloqueioSelect } from './bloqueio.select';
 import { Prisma } from '../generated/prisma/client';
+import { agendamentoSelect } from '../agendamentos/agendamento.select';
 
 @Injectable()
 export class BarbeiroService {
@@ -139,6 +140,53 @@ export class BarbeiroService {
     });
 
     if (count === 0) throw new NotFoundException('Bloqueio não encontrado');
+  }
+
+  async concluir(usuario: UsuarioToken, id: string) {
+    return this.encerrarAtendimento(usuario, id, 'concluido');
+  }
+
+  async marcarFalta(usuario: UsuarioToken, id: string) {
+    return this.encerrarAtendimento(usuario, id, 'no_show');
+  }
+
+  // concluir e marcar falta encerram o atendimento: só depois do horário, e uma vez só
+  private async encerrarAtendimento(
+    usuario: UsuarioToken,
+    id: string,
+    status: 'concluido' | 'no_show',
+  ) {
+    const barbeiro = await this.barbeiroDoUsuario(usuario);
+
+    const atendimento = await this.prisma.agendamento.findFirst({
+      where: { id, barbeiroId: barbeiro.id },
+      select: { inicio: true },
+    });
+
+    if (!atendimento) throw new NotFoundException('Atendimento não encontrado');
+
+    // concluir vale a partir do início; a falta só depois da tolerância de atraso
+    const toleranciaMin = status === 'no_show' ? barbeiro.barbearia.toleranciaFaltaMin : 0;
+    const liberadoEm = new Date(atendimento.inicio.getTime() + toleranciaMin * 60_000);
+    if (new Date() < liberadoEm) {
+      throw new UnprocessableEntityException(
+        status === 'no_show'
+          ? `A falta só pode ser marcada ${toleranciaMin} minutos depois do horário`
+          : 'O atendimento ainda não começou',
+      );
+    }
+    const { count } = await this.prisma.agendamento.updateMany({
+      where: { id, status: { in: ['pendente', 'confirmado'] } },
+      data: { status },
+    });
+
+    if (count === 0) {
+      throw new UnprocessableEntityException('Este atendimento já foi encerrado');
+    }
+    return this.prisma.agendamento.findUniqueOrThrow({
+      where: { id },
+      select: agendamentoSelect,
+    });
   }
 
   private async barbeiroDoUsuario(usuario: UsuarioToken) {
