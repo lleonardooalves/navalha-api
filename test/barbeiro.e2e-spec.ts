@@ -247,4 +247,101 @@ describe('Barbeiro (e2e)', () => {
       expect((await desbloquear(tokenBarbeiro, 'nao-e-uuid')).status).toBe(400);
     });
   });
+
+  describe('concluir e marcar falta', () => {
+    // o relógio para em 10:10 de São Paulo, no DIA: o João (10:00) já devia ter chegado
+    beforeAll(async () => {
+      jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'setTimeout', 'setInterval'] });
+      jest.setSystemTime(new Date(`${DIA}T13:10:00.000Z`));
+      // o token vale 15 min: os de antes ficaram "vencidos" no relógio novo
+      tokenBarbeiro = (await entrar('pedro')).body.accessToken;
+      tokenCliente = (await entrar('joao')).body.accessToken;
+    });
+    afterAll(() => {
+      jest.useRealTimers();
+    });
+
+    const concluir = (token: string, id: string) =>
+      http().post(`/barbeiro/atendimentos/${id}/concluir`).set('Authorization', `Bearer ${token}`);
+    const falta = (token: string, id: string) =>
+      http().post(`/barbeiro/atendimentos/${id}/falta`).set('Authorization', `Bearer ${token}`);
+
+    // encaixes direto no banco, para ter horários antes e depois do relógio
+    async function atendimento(barbeiroId: string, inicio: string, fim: string) {
+      const { id } = await prisma.agendamento.create({
+        data: {
+          barbeariaId,
+          barbeiroId,
+          servicoId,
+          nomeCliente: 'Encaixe',
+          inicio,
+          fim,
+          precoCobradoCentavos: 4500,
+        },
+      });
+      return id;
+    }
+    const pedro = () =>
+      prisma.barbeiro.findFirstOrThrow({ where: { barbeariaId, nomeExibicao: 'Pedro' } });
+
+    it('a falta só vale depois da tolerância; concluir vale a partir do início', async () => {
+      // o João está marcado às 10:00: às 10:10, ainda dentro dos 15 min de tolerância
+      const joao = await prisma.agendamento.findFirstOrThrow({
+        where: { barbeariaId, inicio: `${DIA}T13:00:00.000Z` },
+      });
+      expect((await falta(tokenBarbeiro, joao.id)).status).toBe(422);
+
+      const concluido = await concluir(tokenBarbeiro, joao.id);
+      expect(concluido.status).toBe(200);
+      expect(concluido.body).toMatchObject({ id: joao.id, status: 'concluido' });
+    });
+
+    it('marca falta depois da tolerância', async () => {
+      const { id: pedroId } = await pedro();
+      // 09:00 às 09:30: às 10:10, já passou bem da tolerância
+      const id = await atendimento(pedroId, `${DIA}T12:00:00.000Z`, `${DIA}T12:30:00.000Z`);
+
+      const resposta = await falta(tokenBarbeiro, id);
+      expect(resposta.status).toBe(200);
+      expect(resposta.body.status).toBe('no_show');
+    });
+
+    it('recusa o que ainda não começou e o que já foi encerrado (422)', async () => {
+      const { id: pedroId } = await pedro();
+      // 11:00, depois do relógio
+      const futuro = await atendimento(pedroId, `${DIA}T14:00:00.000Z`, `${DIA}T14:30:00.000Z`);
+      expect((await concluir(tokenBarbeiro, futuro)).status).toBe(422);
+
+      const joao = await prisma.agendamento.findFirstOrThrow({
+        where: { barbeariaId, inicio: `${DIA}T13:00:00.000Z` },
+      });
+      expect((await concluir(tokenBarbeiro, joao.id)).status).toBe(422);
+      expect((await falta(tokenBarbeiro, joao.id)).status).toBe(422);
+    });
+
+    it('dois cliques ao mesmo tempo: só um conclui', async () => {
+      const { id: pedroId } = await pedro();
+      const id = await atendimento(pedroId, `${DIA}T12:30:00.000Z`, `${DIA}T13:00:00.000Z`);
+
+      const respostas = await Promise.all([
+        concluir(tokenBarbeiro, id),
+        concluir(tokenBarbeiro, id),
+      ]);
+      expect(respostas.map((r) => r.status).sort()).toEqual([200, 422]);
+    });
+
+    it('não mexe no atendimento de outro barbeiro (404) e barra o cliente (403)', async () => {
+      const outro = await prisma.barbeiro.create({
+        data: { barbeariaId, nomeExibicao: 'Terceiro' },
+      });
+      const alheio = await atendimento(outro.id, `${DIA}T12:00:00.000Z`, `${DIA}T12:30:00.000Z`);
+
+      expect((await concluir(tokenBarbeiro, alheio)).status).toBe(404);
+      const intacto = await prisma.agendamento.findUniqueOrThrow({ where: { id: alheio } });
+      expect(intacto.status).toBe('confirmado');
+
+      expect((await concluir(tokenCliente, alheio)).status).toBe(403);
+      expect((await concluir(tokenBarbeiro, 'nao-e-uuid')).status).toBe(400);
+    });
+  });
 });
