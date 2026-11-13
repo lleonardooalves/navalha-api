@@ -20,64 +20,72 @@ async function main() {
   if (!senha) throw new Error('Defina CARGA_SENHA com a senha inicial da equipe');
   const senhaHash = await argon2.hash(senha);
 
-  await prisma.$transaction(async (tx) => {
-    const { slug, ...barbeariaDados } = dados.barbearia;
-    const { id: barbeariaId } = await tx.barbearia.upsert({
-      where: { slug },
-      create: { slug, ...barbeariaDados },
-      update: barbeariaDados,
-    });
+  await prisma.$transaction(
+    async (tx) => {
+      const { slug, ...barbeariaDados } = dados.barbearia;
+      const { id: barbeariaId } = await tx.barbearia.upsert({
+        where: { slug },
+        create: { slug, ...barbeariaDados },
+        update: barbeariaDados,
+      });
 
-    // o nome identifica o serviço; quem saiu da lista só fica inativo, porque agendamentos antigos apontam para ele
-    for (const servico of dados.servicos) {
-      const existente = await tx.servico.findFirst({ where: { barbeariaId, nome: servico.nome } });
-      if (existente) {
-        await tx.servico.update({ where: { id: existente.id }, data: { ...servico, ativo: true } });
-      } else {
-        await tx.servico.create({ data: { ...servico, barbeariaId } });
+      // o nome identifica o serviço; quem saiu da lista só fica inativo, porque agendamentos antigos apontam para ele
+      for (const servico of dados.servicos) {
+        const existente = await tx.servico.findFirst({
+          where: { barbeariaId, nome: servico.nome },
+        });
+        if (existente) {
+          await tx.servico.update({
+            where: { id: existente.id },
+            data: { ...servico, ativo: true },
+          });
+        } else {
+          await tx.servico.create({ data: { ...servico, barbeariaId } });
+        }
       }
-    }
-    await tx.servico.updateMany({
-      where: { barbeariaId, nome: { notIn: dados.servicos.map((s) => s.nome) } },
-      data: { ativo: false },
-    });
-
-    // o email identifica a pessoa; o expediente de cada um é refeito do zero
-    const barbeiroIds: string[] = [];
-    for (const { expediente, nomeExibicao, comissaoPercentual, ...pessoa } of dados.equipe) {
-      const usuario = await tx.usuario.upsert({
-        where: { barbeariaId_email: { barbeariaId, email: pessoa.email } },
-        create: { ...pessoa, barbeariaId, senhaHash },
-        update: { nome: pessoa.nome, telefone: pessoa.telefone, papel: pessoa.papel },
+      await tx.servico.updateMany({
+        where: { barbeariaId, nome: { notIn: dados.servicos.map((s) => s.nome) } },
+        data: { ativo: false },
       });
 
-      const barbeiro = await tx.barbeiro.upsert({
-        where: { usuarioId: usuario.id },
-        create: { barbeariaId, usuarioId: usuario.id, nomeExibicao, comissaoPercentual },
-        update: { nomeExibicao, comissaoPercentual, ativo: true },
-      });
-      barbeiroIds.push(barbeiro.id);
+      // o email identifica a pessoa; o expediente de cada um é refeito do zero
+      const barbeiroIds: string[] = [];
+      for (const { expediente, nomeExibicao, comissaoPercentual, ...pessoa } of dados.equipe) {
+        const usuario = await tx.usuario.upsert({
+          where: { barbeariaId_email: { barbeariaId, email: pessoa.email } },
+          create: { ...pessoa, barbeariaId, senhaHash },
+          update: { nome: pessoa.nome, telefone: pessoa.telefone, papel: pessoa.papel },
+        });
 
-      await tx.expediente.deleteMany({ where: { barbeiroId: barbeiro.id } });
-      await tx.expediente.createMany({
-        data: Object.entries(expediente).flatMap(([dia, turnos]) =>
-          turnos.map((turno) => ({
-            barbeariaId,
-            barbeiroId: barbeiro.id,
-            diaSemana: Number(dia),
-            inicioMin: minutos(turno.inicio),
-            fimMin: minutos(turno.fim),
-          })),
-        ),
-      });
-    }
+        const barbeiro = await tx.barbeiro.upsert({
+          where: { usuarioId: usuario.id },
+          create: { barbeariaId, usuarioId: usuario.id, nomeExibicao, comissaoPercentual },
+          update: { nomeExibicao, comissaoPercentual, ativo: true },
+        });
+        barbeiroIds.push(barbeiro.id);
 
-    // quem saiu da equipe some da agenda e dos horários, mas o histórico fica
-    await tx.barbeiro.updateMany({
-      where: { barbeariaId, id: { notIn: barbeiroIds } },
-      data: { ativo: false },
-    });
-  });
+        await tx.expediente.deleteMany({ where: { barbeiroId: barbeiro.id } });
+        await tx.expediente.createMany({
+          data: Object.entries(expediente).flatMap(([dia, turnos]) =>
+            turnos.map((turno) => ({
+              barbeariaId,
+              barbeiroId: barbeiro.id,
+              diaSemana: Number(dia),
+              inicioMin: minutos(turno.inicio),
+              fimMin: minutos(turno.fim),
+            })),
+          ),
+        });
+      }
+
+      // quem saiu da equipe some da agenda e dos horários, mas o histórico fica
+      await tx.barbeiro.updateMany({
+        where: { barbeariaId, id: { notIn: barbeiroIds } },
+        data: { ativo: false },
+      });
+    },
+    { maxWait: 15_000, timeout: 30_000 },
+  );
 
   console.log(
     `${dados.barbearia.nome}: ${dados.servicos.length} serviços, equipe ${dados.equipe
